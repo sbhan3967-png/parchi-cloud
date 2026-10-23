@@ -14,15 +14,24 @@ function show(view) {
 
 /* ---------- auth ---------- */
 async function init() {
-  if (!window.supabase) {
-    document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>Could not load app libraries</h2><p>Check your internet connection and reload.</p></div>';
-    return;
+  try {
+    if (!window.supabase) {
+      document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>Could not load app libraries</h2><p>Check your internet connection and reload.</p></div>';
+      return;
+    }
+    if (!window.PARCHI_CONFIG || !window.PARCHI_CONFIG.SUPABASE_URL || window.PARCHI_CONFIG.SUPABASE_URL.includes('YOUR-PROJECT')) {
+      document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>App not configured</h2><p>Supabase keys missing. Contact support.</p></div>';
+      return;
+    }
+    const { createClient } = window.supabase;
+    sb = createClient(window.PARCHI_CONFIG.SUPABASE_URL, window.PARCHI_CONFIG.SUPABASE_ANON_KEY);
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw error;
+    user = data.session?.user || null;
+    if (user) { enterApp(); } else { show('login'); }
+  } catch (e) {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>Error</h2><p>' + esc(e.message) + '</p></div>';
   }
-  const { createClient } = window.supabase;
-  sb = createClient(window.PARCHI_CONFIG.SUPABASE_URL, window.PARCHI_CONFIG.SUPABASE_ANON_KEY);
-  const { data } = await sb.auth.getSession();
-  user = data.session?.user || null;
-  if (user) { enterApp(); } else { show('login'); }
 }
 async function doLogin(e) {
   e.preventDefault();
