@@ -1,6 +1,5 @@
 /* Parchi Cloud - phone PWA. Supabase DB + Storage, camera upload. */
 'use strict';
-const { createClient } = window.supabase;
 let sb = null, user = null, parchis = [], current = null, rows = [];
 
 const $ = id => document.getElementById(id);
@@ -15,6 +14,11 @@ function show(view) {
 
 /* ---------- auth ---------- */
 async function init() {
+  if (!window.supabase) {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>Could not load app libraries</h2><p>Check your internet connection and reload.</p></div>';
+    return;
+  }
+  const { createClient } = window.supabase;
   sb = createClient(window.PARCHI_CONFIG.SUPABASE_URL, window.PARCHI_CONFIG.SUPABASE_ANON_KEY);
   const { data } = await sb.auth.getSession();
   user = data.session?.user || null;
