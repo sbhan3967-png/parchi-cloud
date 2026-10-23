@@ -1,1 +1,45 @@
-/* placeholder - will be replaced by real stylesheet */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#f6f4ee;color:#222;max-width:900px;margin:0 auto;padding-bottom:90px}
+header{position:sticky;top:0;background:#1d1a12;color:#f5e9c8;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;z-index:10}
+header h1{font-size:19px}
+.view{display:none;padding:14px}
+.view.active{display:block}
+h2{margin:10px 0}
+label{display:block;margin:10px 0;font-size:14px;font-weight:600}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=date]{width:100%;padding:11px;border:1px solid #ccc;border-radius:8px;font-size:16px;margin-top:4px;background:#fff}
+button{font-size:15px;padding:10px 16px;border-radius:8px;border:1px solid #bbb;background:#fff;cursor:pointer}
+button.primary{background:#C9A227;border-color:#C9A227;color:#fff;font-weight:700}
+button.big{width:100%;margin-top:12px;padding:14px}
+button.link{background:none;border:none;color:#8a6d1c;padding:6px 2px;font-size:15px}
+button.danger{color:#b3261e;border-color:#e0a9a5}
+.muted{color:#777;font-size:13px;margin:6px 0}
+.err{color:#b3261e}
+.login-box{max-width:340px;margin:40px auto;background:#fff;padding:22px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.login-box button{width:100%;margin-top:10px}
+.toolbar{display:flex;gap:8px;margin-bottom:12px}
+.toolbar input{flex:1}
+.card{background:#fff;border-radius:10px;padding:12px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);cursor:pointer}
+.card-top{display:flex;justify-content:space-between;align-items:center}
+.pill{font-size:11px;padding:3px 10px;border-radius:20px;background:#eee}
+.pill.gold{background:#f7e8bd;color:#8a6d1c}
+.pill.silver{background:#e3e8f0;color:#3c4a63}
+.card-total{font-size:18px;font-weight:700;margin-top:6px;color:#1d1a12}
+.kindrow{display:flex;gap:18px;margin:10px 0}
+.kindrow label{font-weight:400;display:flex;gap:6px;align-items:center}
+.photorow{display:flex;gap:10px;margin:6px 0}
+.filebtn{background:#fff;border:1px solid #C9A227;color:#8a6d1c;border-radius:8px;padding:11px 16px;font-size:15px;cursor:pointer;font-weight:600}
+.parchi-photo{width:100%;border-radius:8px;margin:8px 0;box-shadow:0 1px 6px rgba(0,0,0,.12)}
+.rate-row{margin:8px 0;font-size:14px}
+.rate-row input{width:130px;display:inline-block;margin:0 0 0 6px;padding:7px}
+.tbl-wrap{overflow-x:auto;margin:10px -14px;padding:0 14px}
+table.rows{border-collapse:collapse;min-width:100%;background:#fff;font-size:13px}
+table.rows th{background:#C9A227;color:#fff;padding:8px 6px;position:sticky;top:0;white-space:nowrap}
+table.rows td{border:1px solid #e5e0d0;padding:4px}
+table.rows input{border:1px solid #d8d2bd;border-radius:4px;padding:6px 4px;font-size:13px}
+table.rows tr.flagged td{background:#fff8e1}
+td.calc{background:#eef3ff;text-align:center;white-space:nowrap}
+td.diffbad{color:#b3261e;font-weight:700}
+td.flagcell{font-size:11px;color:#8a6d1c;max-width:150px}
+.totalsbar{position:sticky;bottom:0;background:#1d1a12;color:#f5e9c8;padding:12px 14px;border-radius:10px;margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.totalsbar button{background:#C9A227;border-color:#C9A227;color:#fff}
+.totalsbar button.danger{background:none;border:1px solid #e0a9a5;color:#f0a9a5}
