@@ -1,5 +1,5 @@
 /* Parchi Cloud service worker - cache app shell */
-const CACHE = 'parchi-cloud-v1';
+const CACHE = 'parchi-cloud-v2';
 const SHELL = ['.', 'index.html', 'manifest.json', 'css/style.css',
   'js/config.js', 'js/math.js', 'js/app.js'];
 self.addEventListener('install', e => {
