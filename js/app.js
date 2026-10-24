@@ -85,6 +85,7 @@ function openNew() {
 function onPhotoChosen(input) {
   const f = input.files[0]; if (!f) return;
   newPhotoFile = f;
+  window._currentPhotoBlob = f;
   $('np-photo-name').textContent = f.name + ' (' + Math.round(f.size / 1024) + ' KB)';
   const rd = new FileReader();
   rd.onload = e => { $('np-preview').src = e.target.result; $('np-preview').style.display = 'block'; };

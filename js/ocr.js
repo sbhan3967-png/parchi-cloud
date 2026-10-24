@@ -145,23 +145,31 @@ function parseGoldLine(text) {
 const OCR_SERVER_URL = 'https://parchi-ocr-server.onrender.com';
 
 async function readPhotoViaServer(blob, kind, rateKg, onProgress) {
-  if (onProgress) onProgress(0.1);
+  if (onProgress) onProgress(0.15, 'Sending photo to OCR server...');
   const fd = new FormData();
   fd.append('photo', blob, 'parchi.jpg');
   fd.append('kind', kind);
   fd.append('rate_kg', String(rateKg || 205000));
-  const res = await fetch(OCR_SERVER_URL + '/read', { method: 'POST', body: fd });
-  if (!res.ok) throw new Error('Server OCR failed (HTTP ' + res.status + ')');
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  if (onProgress) onProgress(1);
-  return (data.rows || []).map((r, i) => ({
-    sno: i + 1,
-    item: r.item || '', gwt: r.gwt ?? null, net: r.net ?? null,
-    tw: r.tw ?? null, tunch: r.tunch ?? null,
-    labour_rs: r.labour_rs ?? null, silver_wt: r.silver_wt ?? null,
-    flag: r.flag || '',
-  }));
+  let wakeTimer = setTimeout(() => {
+    if (onProgress) onProgress(0.4, 'OCR server waking up (takes ~30-60s on free tier)...');
+  }, 4000);
+  try {
+    const res = await fetch(OCR_SERVER_URL + '/read', { method: 'POST', body: fd });
+    clearTimeout(wakeTimer);
+    if (!res.ok) throw new Error('Server OCR failed (HTTP ' + res.status + ')');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (onProgress) onProgress(1, 'Processing complete');
+    return (data.rows || []).map((r, i) => ({
+      sno: i + 1,
+      item: r.item || '', gwt: r.gwt ?? null, net: r.net ?? null,
+      tw: r.tw ?? null, tunch: r.tunch ?? null,
+      labour_rs: r.labour_rs ?? null, silver_wt: r.silver_wt ?? null,
+      flag: r.flag || '',
+    }));
+  } finally {
+    clearTimeout(wakeTimer);
+  }
 }
 
 /* ---------- Main entry: server first, Tesseract fallback ---------- */
@@ -175,8 +183,9 @@ async function readPhoto(blobOrUrl, kind, onProgress) {
       ? state.current.metal_rate : 205000;
     return await readPhotoViaServer(blob, kind, rateKg, onProgress);
   } catch (serverErr) {
+    console.warn('Server OCR failed, falling back to on-device Tesseract:', serverErr);
     // Fall back to on-device Tesseract
-    if (onProgress) onProgress(0);
+    if (onProgress) onProgress(0, 'Server unavailable, falling back to on-device reader...');
     const T = await loadTesseract();
     const worker = await T.createWorker('eng', 1, {
       logger: m => { if (onProgress && m.status === 'recognizing text') onProgress(m.progress); }
@@ -213,7 +222,7 @@ async function readCurrentPhoto() {
     const sb = state.sb;
     if (!current || !current.id) { setMsg('Open a parchi first.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Reading photo...'; }
-    setMsg('Loading OCR engine (first time takes ~10s)...');
+    setMsg('Checking photo and connecting to OCR server...');
     // Get the photo: prefer the already-uploaded file, else fetch from storage
     let blob = window._currentPhotoBlob;
     if (!blob && current.photo_url && sb) {
@@ -224,11 +233,19 @@ async function readCurrentPhoto() {
       const res = await fetch(data.signedUrl);
       blob = await res.blob();
     }
+    if (!blob) {
+      const img = document.getElementById('detail-img');
+      if (img && img.src && !img.src.startsWith('data:image/svg')) {
+        setMsg('Downloading photo preview...');
+        const res = await fetch(img.src);
+        blob = await res.blob();
+      }
+    }
     if (!blob) throw new Error('No photo on this parchi. Upload a photo first, then tap Read Photo.');
     setMsg('Reading photo... this takes 10-30 seconds.');
     const kind = current.kind || 'silver';
-    const rows = await readPhoto(blob, kind, p => {
-      setMsg('Reading photo... ' + Math.round(p * 100) + '%');
+    const rows = await readPhoto(blob, kind, (p, text) => {
+      setMsg(text || ('Reading photo... ' + Math.round(p * 100) + '%'));
     });
     if (!rows.length) {
       setMsg('No rows detected. Try a clearer, straighter photo with good light. You can still add rows manually with + Add Row.');
