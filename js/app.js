@@ -410,3 +410,7 @@ if (document.readyState === 'loading') {
 } else {
   startAppSafely();
 }
+
+// Expose parchi state for the OCR module (ocr.js cannot see let variables)
+window.getParchiState = () => ({ current, rows, sb });
+window.setParchiRows = (r) => { rows = r; renderRows(); };
