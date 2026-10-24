@@ -3,7 +3,7 @@
 let sb = null, user = null, parchis = [], current = null, rows = [];
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
 const fmtN = (v, d=2) => (v === null || v === undefined || v === '') ? '' : Number(v).toFixed(d);
 
 function show(view) {
@@ -19,11 +19,11 @@ async function init() {
     var loginEl = document.getElementById('view-login');
     if (loginEl) loginEl.classList.add('active');
     if (!window.supabase) {
-      document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>Could not load app libraries</h2><p>Check your internet connection and reload.</p></div>';
+      document.body.innerHTML = '<div style=\"padding:40px;text-align:center;font-family:sans-serif;\"><h2>Could not load app libraries</h2><p>Check your internet connection and reload.</p></div>';
       return;
     }
     if (!window.PARCHI_CONFIG || !window.PARCHI_CONFIG.SUPABASE_URL || window.PARCHI_CONFIG.SUPABASE_URL.includes('YOUR-PROJECT')) {
-      document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>App not configured</h2><p>Supabase keys missing. Contact support.</p></div>';
+      document.body.innerHTML = '<div style=\"padding:40px;text-align:center;font-family:sans-serif;\"><h2>App not configured</h2><p>Supabase keys missing. Contact support.</p></div>';
       return;
     }
     const { createClient } = window.supabase;
@@ -33,7 +33,7 @@ async function init() {
     user = data.session?.user || null;
     if (user) { enterApp(); } else { show('login'); }
   } catch (e) {
-    document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>Error</h2><p>' + esc(e.message) + '</p></div>';
+    document.body.innerHTML = '<div style=\"padding:40px;text-align:center;font-family:sans-serif;\"><h2>Error</h2><p>' + esc(e.message) + '</p></div>';
   }
 }
 async function doLogin(e) {
@@ -56,19 +56,19 @@ async function doLogout() { await sb.auth.signOut(); location.reload(); }
 /* ---------- home / list ---------- */
 async function enterApp() { show('home'); await loadParchis(); }
 async function loadParchis() {
-  $('home-list').innerHTML = '<p class="muted">Loading...</p>';
+  $('home-list').innerHTML = '<p class=\"muted\">Loading...</p>';
   const q = $('home-search').value.trim();
   let query = sb.from('parchis').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100);
   if (q) query = query.ilike('party_name', '%' + q + '%');
   const { data, error } = await query;
-  if (error) { $('home-list').innerHTML = '<p class="err">' + esc(error.message) + '</p>'; return; }
+  if (error) { $('home-list').innerHTML = '<p class=\"err\">' + esc(error.message) + '</p>'; return; }
   parchis = data;
   $('home-list').innerHTML = parchis.length ? parchis.map(p => `
-    <div class="card" onclick="openParchi('${p.id}')">
-      <div class="card-top"><b>${esc(p.party_name)}</b><span class="pill ${p.kind}">${p.kind === 'gold' ? 'Gold-Diamond' : 'Silver'}</span></div>
-      <div class="muted">${esc(p.bill_no || '')} ${p.bill_date ? '· ' + esc(p.bill_date) : ''}</div>
-      <div class="card-total">${p.total_amt != null ? '₹' + Number(p.total_amt).toLocaleString('en-IN', {maximumFractionDigits: 0}) : ''}</div>
-    </div>`).join('') : '<p class="muted">No parchis yet. Tap + New Parchi.</p>';
+    <div class=\"card\" onclick=\"openParchi('${p.id}')\">
+      <div class=\"card-top\"><b>${esc(p.party_name)}</b><span class=\"pill ${p.kind}\">${p.kind === 'gold' ? 'Gold-Diamond' : 'Silver'}</span></div>
+      <div class=\"muted\">${esc(p.bill_no || '')} ${p.bill_date ? '· ' + esc(p.bill_date) : ''}</div>
+      <div class=\"card-total\">${p.total_amt != null ? '₹' + Number(p.total_amt).toLocaleString('en-IN', {maximumFractionDigits: 0}) : ''}</div>
+    </div>`).join('') : '<p class=\"muted\">No parchis yet. Tap + New Parchi.</p>';
 }
 
 /* ---------- new parchi ---------- */
@@ -79,7 +79,7 @@ function openNew() {
   $('np-rate').value = '205000'; newPhotoFile = null;
   $('np-photo-name').textContent = 'No photo chosen';
   $('np-preview').src = ''; $('np-preview').style.display = 'none';
-  document.querySelector('input[name="np-kind"][value="silver"]').checked = true;
+  document.querySelector('input[name=\"np-kind\"][value=\"silver\"]').checked = true;
   show('new');
 }
 function onPhotoChosen(input) {
@@ -93,7 +93,7 @@ function onPhotoChosen(input) {
 async function saveNewParchi() {
   const party = $('np-party').value.trim();
   if (!party) { $('np-msg').textContent = 'Enter party name.'; return; }
-  const kind = document.querySelector('input[name="np-kind"]:checked').value;
+  const kind = document.querySelector('input[name=\"np-kind\"]:checked').value;
   const billno = $('np-billno').value.trim() || null;
   $('np-msg').textContent = 'Checking for duplicates...';
   $('np-save').disabled = true;
@@ -102,8 +102,8 @@ async function saveNewParchi() {
       const { data: dupes } = await sb.from('parchis')
         .select('id,party_name,bill_no,bill_date').eq('party_name', party).eq('bill_no', billno).limit(3);
       if (dupes && dupes.length) {
-        const list = dupes.map(p => `${p.party_name} | bill ${p.bill_no} | ${p.bill_date || ''}`).join('\n');
-        if (!confirm('This looks like a parchi you already uploaded:\n\n' + list + '\n\nSave anyway?')) {
+        const list = dupes.map(p => `${p.party_name} | bill ${p.bill_no} | ${p.bill_date || ''}`).join('\\n');
+        if (!confirm('This looks like a parchi you already uploaded:\\n\\n' + list + '\\n\\nSave anyway?')) {
           $('np-msg').textContent = ''; $('np-save').disabled = false; return;
         }
       }
@@ -116,8 +116,8 @@ async function saveNewParchi() {
       const { data: pdupes } = await sb.from('parchis')
         .select('id,party_name,bill_no,bill_date').eq('photo_hash', phash).limit(3);
       if (pdupes && pdupes.length) {
-        const list = pdupes.map(p => `${p.party_name} | bill ${p.bill_no || ''} | ${p.bill_date || ''}`).join('\n');
-        if (!confirm('This exact photo was already uploaded as:\n\n' + list + '\n\nSave anyway?')) {
+        const list = pdupes.map(p => `${p.party_name} | bill ${p.bill_no || ''} | ${p.bill_date || ''}`).join('\\n');
+        if (!confirm('This exact photo was already uploaded as:\\n\\n' + list + '\\n\\nSave anyway?')) {
           $('np-msg').textContent = ''; $('np-save').disabled = false; return;
         }
       }
@@ -147,7 +147,7 @@ async function saveNewParchi() {
 /* ---------- detail / rows ---------- */
 async function openParchi(id) {
   show('detail');
-  $('detail-body').innerHTML = '<p class="muted">Loading...</p>';
+  $('detail-body').innerHTML = '<p class=\"muted\">Loading...</p>';
   try {
     const { data: p, error: pErr } = await sb.from('parchis').select('*').eq('id', id).single();
     if (pErr) throw new Error('Could not load parchi: ' + pErr.message);
@@ -166,24 +166,24 @@ async function openParchi(id) {
       const { data: u } = await sb.storage.from('parchi-photos').createSignedUrl(p.photo_url, 3600);
       if (u?.signedUrl) {
         photoHtml = `
-        <div class="photo-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <span style="font-size:13px;font-weight:600;color:#666">📷 Bill Photo (tap to view full)</span>
-            <button class="link" type="button" onclick="togglePhoto(this)">Hide Photo</button>
+        <div class=\"photo-card\">
+          <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:6px\">
+            <span style=\"font-size:13px;font-weight:600;color:#666\">📷 Bill Photo (tap to view full)</span>
+            <button class=\"link\" type=\"button\" onclick=\"togglePhoto(this)\">Hide Photo</button>
           </div>
-          <img id="detail-img" class="parchi-photo" src="${u.signedUrl}" onclick="window.open('${u.signedUrl}','_blank')">
+          <img id=\"detail-img\" class=\"parchi-photo\" src=\"${u.signedUrl}\" onclick=\"window.open('${u.signedUrl}','_blank')\">
         </div>`;
       }
     }
     $('detail-head').innerHTML = `
-    <button class="link" onclick="enterApp()">← Back</button>
+    <button class=\"link\" onclick=\"enterApp()\">← Back</button>
     <h2>${esc(p.party_name)}</h2>
-    <div class="muted">${p.kind === 'gold' ? 'Gold-Diamond' : 'Silver'} · ${esc(p.bill_no || '')} ${p.bill_date ? '· ' + esc(p.bill_date) : ''}</div>
-    <div class="rate-row">Metal rate Rs/kg: <input id="detail-rate" type="number" value="${p.metal_rate || ''}" onchange="onRateChange()"></div>
+    <div class=\"muted\">${p.kind === 'gold' ? 'Gold-Diamond' : 'Silver'} · ${esc(p.bill_no || '')} ${p.bill_date ? '· ' + esc(p.bill_date) : ''}</div>
+    <div class=\"rate-row\">Metal rate Rs/kg: <input id=\"detail-rate\" type=\"number\" value=\"${p.metal_rate || ''}\" onchange=\"onRateChange()\"></div>
     ${photoHtml}`;
     renderRows();
   } catch (e) {
-    $('detail-body').innerHTML = '<p class="err">' + esc(e.message) + '</p><button class="link" onclick="enterApp()">← Back</button>';
+    $('detail-body').innerHTML = '<p class=\"err\">' + esc(e.message) + '</p><button class=\"link\" onclick=\"enterApp()\">← Back</button>';
   }
 }
 function togglePhoto(btn) {
@@ -211,7 +211,7 @@ function renderRows() {
     if (!window.ParchiMath) throw new Error('Calculation engine (math.js) did not load. Check your connection and reload.');
     if (!current) throw new Error('No parchi selected.');
     const gold = current.kind === 'gold';
-    let html = `<div class="tbl-wrap"><table class="rows"><thead><tr>
+    let html = `<div class=\"tbl-wrap\"><table class=\"rows\"><thead><tr>
     <th>#</th><th>Item</th>${gold
       ? '<th>G.Wt</th><th>N.Wt</th><th>Tunch</th><th>Dia Wt</th><th>Dia Rate</th><th>St Wt</th><th>St Rate</th><th>Mk/g</th><th>Billed</th><th>Calc</th><th>Diff</th><th>Total Amt</th>'
       : '<th>G.Wt</th><th>Tunch</th><th>Net</th><th>T+W</th><th>Silver Wt</th><th>Wst%</th><th>Wst Rs/g</th><th>Lab Rs</th><th>Lab Rs/g</th><th>Total Rs/g</th><th>Total Amt</th>'}
@@ -221,43 +221,43 @@ function renderRows() {
       const c = calcRow(r);
       r._c = c;
       if (c.total_amt != null) grandTotal += c.total_amt;
-      const inp = (f, v, w) => `<input data-i="${i}" data-f="${f}" value="${esc(v ?? '')}" style="width:${w || 64}px" oninput="onCell(this)">`;
-      html += `<tr data-row="${i}" class="${c.flag ? 'flagged' : ''}"><td>${r.sno ?? i + 1}</td><td>${inp('item', r.item, 110)}</td>`;
+      const inp = (f, v, w) => `<input data-i=\"${i}\" data-f=\"${f}\" value=\"${esc(v ?? '')}\" style=\"width:${w || 64}px\" oninput=\"onCell(this)\">`;
+      html += `<tr data-row=\"${i}\" class=\"${c.flag ? 'flagged' : ''}\"><td>${r.sno ?? i + 1}</td><td>${inp('item', r.item, 110)}</td>`;
       if (gold) {
         html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('nwt', r.nwt)}</td><td>${inp('tunch', r.tunch)}</td>
         <td>${inp('dia_wt', r.dia_wt)}</td><td>${inp('dia_rate', r.dia_rate)}</td>
         <td>${inp('st_wt', r.st_wt)}</td><td>${inp('st_rate', r.st_rate)}</td>
         <td>${inp('making', r.making)}</td><td>${inp('billed', r.billed, 80)}</td>
-        <td class="calc c-calc_total">${fmtN(c.calc_total)}</td><td class="calc c-diff ${c.diff ? 'diffbad' : ''}">${fmtN(c.diff)}</td>
-        <td class="calc c-total_amt"><b>${fmtN(c.total_amt)}</b></td>`;
+        <td class=\"calc c-calc_total\">${fmtN(c.calc_total)}</td><td class=\"calc c-diff ${c.diff ? 'diffbad' : ''}\">${fmtN(c.diff)}</td>
+        <td class=\"calc c-total_amt\"><b>${fmtN(c.total_amt)}</b></td>`;
       } else {
         html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('tunch', r.tunch)}</td>
         <td>${inp('net', r.net)}</td><td>${inp('tw', r.tw)}</td>
-        <td class="calc c-silver_wt">${fmtN(c.silver_wt, 3)}</td><td class="calc c-wastage_pct">${fmtN(c.wastage_pct)}</td>
-        <td class="calc c-wastage_rsg">${fmtN(c.wastage_rsg)}</td><td>${inp('labour_rs', r.labour_rs)}</td>
-        <td class="calc c-labour_rsg">${fmtN(c.labour_rsg)}</td><td class="calc c-total_rsg">${fmtN(c.total_rsg)}</td>
-        <td class="calc c-total_amt"><b>${fmtN(c.total_amt)}</b></td>`;
+        <td class=\"calc c-silver_wt\">${fmtN(c.silver_wt, 3)}</td><td class=\"calc c-wastage_pct\">${fmtN(c.wastage_pct)}</td>
+        <td class=\"calc c-wastage_rsg\">${fmtN(c.wastage_rsg)}</td><td>${inp('labour_rs', r.labour_rs)}</td>
+        <td class=\"calc c-labour_rsg\">${fmtN(c.labour_rsg)}</td><td class=\"calc c-total_rsg\">${fmtN(c.total_rsg)}</td>
+        <td class=\"calc c-total_amt\"><b>${fmtN(c.total_amt)}</b></td>`;
       }
-      html += `<td class="flagcell c-flag">${esc(c.flag || '')}</td>
-      <td><button class="link danger" onclick="delRow(${i})">×</button></td></tr>`;
+      html += `<td class=\"flagcell c-flag\">${esc(c.flag || '')}</td>
+      <td><button class=\"link danger\" onclick=\"delRow(${i})\">×</button></td></tr>`;
     });
     html += `</tbody></table></div>
-    <div class="totalsbar">Grand Total Amt: <b id="grand-total-val">₹${grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b>
-    <button onclick="saveRows()">Save</button> <button onclick="addRow()">+ Add Row</button>
-    <button class="danger" onclick="delParchi()">Delete Parchi</button></div>
-    ${rows.length === 0 ? '<p style="background:#fff8e1;padding:12px;border-radius:8px;margin-top:10px">No items yet. Tap <b>+ Add Row</b> below to add your first item, then fill in the weights — Silver Wt and Total Amt will calculate automatically.</p>' : ''}
-    <div id="detail-msg" class="muted"></div>`;
+    <div class=\"totalsbar\">Grand Total Amt: <b id=\"grand-total-val\">₹${grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b>
+    <button onclick=\"saveRows()\">Save</button> <button onclick=\"addRow()\">+ Add Row</button>
+    <button class=\"danger\" onclick=\"delParchi()\">Delete Parchi</button></div>
+    ${rows.length === 0 ? '<p style=\"background:#fff8e1;padding:12px;border-radius:8px;margin-top:10px\">No items yet. Tap <b>+ Add Row</b> below to add your first item, then fill in the weights — Silver Wt and Total Amt will calculate automatically.</p>' : ''}
+    <div id=\"detail-msg\" class=\"muted\"></div>`;
     $('detail-body').innerHTML = html;
     current._grand = grandTotal;
   } catch (e) {
-    $('detail-body').innerHTML = '<p class="err">' + esc(e.message) + '</p><button onclick="renderRows()">Retry</button>';
+    $('detail-body').innerHTML = '<p class=\"err\">' + esc(e.message) + '</p><button onclick=\"renderRows()\">Retry</button>';
   }
 }
 function updateRowCalcs(i) {
   const r = rows[i];
   const c = calcRow(r);
   r._c = c;
-  const tr = document.querySelector(`tr[data-row="${i}"]`);
+  const tr = document.querySelector(`tr[data-row=\"${i}\"]`);
   if (!tr) return;
   if (c.flag) {
     tr.classList.add('flagged');
@@ -303,12 +303,12 @@ function onCell(el) {
   rows[i][f] = val;
   if (current.kind !== 'gold' && f === 'gwt' && (!rows[i].net || rows[i].net === '')) {
     rows[i].net = val;
-    const netInp = document.querySelector(`input[data-i="${i}"][data-f="net"]`);
+    const netInp = document.querySelector(`input[data-i=\"${i}\"][data-f=\"net\"]`);
     if (netInp && (!netInp.value || netInp.value === '')) netInp.value = val || '';
   }
   if (current.kind === 'gold' && f === 'gwt' && (!rows[i].nwt || rows[i].nwt === '')) {
     rows[i].nwt = val;
-    const nwtInp = document.querySelector(`input[data-i="${i}"][data-f="nwt"]`);
+    const nwtInp = document.querySelector(`input[data-i=\"${i}\"][data-f=\"nwt\"]`);
     if (nwtInp && (!nwtInp.value || nwtInp.value === '')) nwtInp.value = val || '';
   }
   updateRowCalcs(i);
@@ -330,7 +330,7 @@ function contentHash(rows, kind) {
     const f3 = v => { const n = parseFloat(v); return isNaN(n) ? '' : n.toFixed(3); };
     if (kind === 'gold') return [r.item, r.gwt, r.nwt, r.tunch, r.dia_wt, r.dia_rate, r.st_wt, r.st_rate, r.making, r.billed].map(v => String(v ?? '').trim().toLowerCase()).join('|');
     return [r.item, r.gwt, r.tunch, r.net, r.tw, r.labour_rs, c.wastage_pct, c.labour_rsg].map(v => String(v ?? '').trim().toLowerCase()).join('|');
-  }).sort().join('\n');
+  }).sort().join('\\n');
   let h1 = 0x811c9dc5, h2 = 0x01000193;
   for (let i = 0; i < parts.length; i++) { h1 = (h1 ^ parts.charCodeAt(i)) * 0x01000193 >>> 0; h2 = (h2 ^ parts.charCodeAt(parts.length - 1 - i)) * 0x01000193 >>> 0; }
   return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0');
@@ -361,8 +361,8 @@ async function saveRows() {
   const { data: cdupes } = await sb.from('parchis')
     .select('id,party_name,bill_no,bill_date').eq('content_hash', chash).neq('id', current.id).limit(3);
   if (cdupes && cdupes.length) {
-    const list = cdupes.map(p => `${p.party_name} | bill ${p.bill_no || ''} | ${p.bill_date || ''}`).join('\n');
-    $('detail-msg').textContent = 'Saved ✓ (note: same content as:\n' + list + ')';
+    const list = cdupes.map(p => `${p.party_name} | bill ${p.bill_no || ''} | ${p.bill_date || ''}`).join('\\n');
+    $('detail-msg').textContent = 'Saved ✓ (note: same content as:\\n' + list + ')';
   } else {
     $('detail-msg').textContent = 'Saved ✓';
   }
@@ -371,9 +371,26 @@ async function saveRows() {
 }
 /* num() is defined in math.js - do not redeclare here */
 async function delParchi() {
-  if (!confirm('Delete this entire parchi?')) return;
-  await sb.from('parchis').delete().eq('id', current.id);
-  enterApp();
+  const btn = document.querySelector('button.danger');
+  if (btn && btn.dataset.armed !== '1') {
+    btn.dataset.armed = '1';
+    btn.textContent = 'Tap again to confirm delete';
+    setTimeout(() => { if (btn) { btn.dataset.armed = ''; btn.textContent = 'Delete Parchi'; } }, 4000);
+    return;
+  }
+  if (!current || !current.id) { alert('No parchi selected.'); return; }
+  const msg = document.getElementById('detail-msg');
+  try {
+    if (msg) msg.textContent = 'Deleting...';
+    const { error: rowErr } = await sb.from('parchi_rows').delete().eq('parchi_id', current.id);
+    if (rowErr) throw new Error('Could not delete rows: ' + rowErr.message);
+    const { error } = await sb.from('parchis').delete().eq('id', current.id);
+    if (error) throw new Error('Could not delete parchi: ' + error.message);
+    enterApp();
+  } catch (e) {
+    if (msg) msg.textContent = 'Delete failed: ' + e.message;
+    else alert('Delete failed: ' + e.message);
+  }
 }
 
 async function startAppSafely() {
