@@ -98,7 +98,6 @@ async function saveNewParchi() {
   $('np-msg').textContent = 'Checking for duplicates...';
   $('np-save').disabled = true;
   try {
-    // duplicate check: same party + bill no
     if (billno) {
       const { data: dupes } = await sb.from('parchis')
         .select('id,party_name,bill_no,bill_date').eq('party_name', party).eq('bill_no', billno).limit(3);
@@ -109,7 +108,6 @@ async function saveNewParchi() {
         }
       }
     }
-    // duplicate check: same photo bytes
     let phash = null;
     if (newPhotoFile) {
       const buf = await newPhotoFile.arrayBuffer();
@@ -150,21 +148,24 @@ async function saveNewParchi() {
 async function openParchi(id) {
   show('detail');
   $('detail-body').innerHTML = '<p class="muted">Loading...</p>';
-  const { data: p } = await sb.from('parchis').select('*').eq('id', id).single();
-  const { data: r } = await sb.from('parchi_rows').select('*').eq('parchi_id', id).order('sno');
-  current = p; rows = r || [];
-  if (!rows || rows.length === 0) {
-    rows = [
-      { parchi_id: p.id, sno: 1, item: '' },
-      { parchi_id: p.id, sno: 2, item: '' },
-      { parchi_id: p.id, sno: 3, item: '' }
-    ];
-  }
-  let photoHtml = '';
-  if (p.photo_url) {
-    const { data: u } = await sb.storage.from('parchi-photos').createSignedUrl(p.photo_url, 3600);
-    if (u?.signedUrl) {
-      photoHtml = `
+  try {
+    const { data: p, error: pErr } = await sb.from('parchis').select('*').eq('id', id).single();
+    if (pErr) throw new Error('Could not load parchi: ' + pErr.message);
+    if (!p) throw new Error('Parchi not found.');
+    const { data: r } = await sb.from('parchi_rows').select('*').eq('parchi_id', id).order('sno');
+    current = p; rows = r || [];
+    if (!rows || rows.length === 0) {
+      rows = [
+        { parchi_id: p.id, sno: 1, item: '' },
+        { parchi_id: p.id, sno: 2, item: '' },
+        { parchi_id: p.id, sno: 3, item: '' }
+      ];
+    }
+    let photoHtml = '';
+    if (p.photo_url) {
+      const { data: u } = await sb.storage.from('parchi-photos').createSignedUrl(p.photo_url, 3600);
+      if (u?.signedUrl) {
+        photoHtml = `
         <div class="photo-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <span style="font-size:13px;font-weight:600;color:#666">📷 Bill Photo (tap to view full)</span>
@@ -172,15 +173,18 @@ async function openParchi(id) {
           </div>
           <img id="detail-img" class="parchi-photo" src="${u.signedUrl}" onclick="window.open('${u.signedUrl}','_blank')">
         </div>`;
+      }
     }
-  }
-  $('detail-head').innerHTML = `
+    $('detail-head').innerHTML = `
     <button class="link" onclick="enterApp()">← Back</button>
     <h2>${esc(p.party_name)}</h2>
     <div class="muted">${p.kind === 'gold' ? 'Gold-Diamond' : 'Silver'} · ${esc(p.bill_no || '')} ${p.bill_date ? '· ' + esc(p.bill_date) : ''}</div>
     <div class="rate-row">Metal rate Rs/kg: <input id="detail-rate" type="number" value="${p.metal_rate || ''}" onchange="onRateChange()"></div>
     ${photoHtml}`;
-  renderRows();
+    renderRows();
+  } catch (e) {
+    $('detail-body').innerHTML = '<p class="err">' + esc(e.message) + '</p><button class="link" onclick="enterApp()">← Back</button>';
+  }
 }
 function togglePhoto(btn) {
   const img = $('detail-img');
@@ -195,48 +199,59 @@ async function onRateChange() {
   current.metal_rate = v; renderRows();
 }
 function calcRow(r) {
-  const M = window.ParchiMath;
-  return current.kind === 'gold' ? M.computeGold(r, current.metal_rate) : M.computeSilver(r, current.metal_rate);
+  try {
+    const M = window.ParchiMath;
+    return current.kind === 'gold' ? M.computeGold(r, current.metal_rate) : M.computeSilver(r, current.metal_rate);
+  } catch (e) {
+    return { flag: 'calc error: ' + e.message };
+  }
 }
 function renderRows() {
-  const gold = current.kind === 'gold';
-  let html = `<div class="tbl-wrap"><table class="rows"><thead><tr>
+  try {
+    if (!window.ParchiMath) throw new Error('Calculation engine (math.js) did not load. Check your connection and reload.');
+    if (!current) throw new Error('No parchi selected.');
+    const gold = current.kind === 'gold';
+    let html = `<div class="tbl-wrap"><table class="rows"><thead><tr>
     <th>#</th><th>Item</th>${gold
       ? '<th>G.Wt</th><th>N.Wt</th><th>Tunch</th><th>Dia Wt</th><th>Dia Rate</th><th>St Wt</th><th>St Rate</th><th>Mk/g</th><th>Billed</th><th>Calc</th><th>Diff</th><th>Total Amt</th>'
       : '<th>G.Wt</th><th>Tunch</th><th>Net</th><th>T+W</th><th>Silver Wt</th><th>Wst%</th><th>Wst Rs/g</th><th>Lab Rs</th><th>Lab Rs/g</th><th>Total Rs/g</th><th>Total Amt</th>'}
     <th>Flag</th><th></th></tr></thead><tbody>`;
-  let grandTotal = 0;
-  rows.forEach((r, i) => {
-    const c = calcRow(r);
-    r._c = c;
-    if (c.total_amt != null) grandTotal += c.total_amt;
-    const inp = (f, v, w) => `<input data-i="${i}" data-f="${f}" value="${esc(v ?? '')}" style="width:${w || 64}px" oninput="onCell(this)">`;
-    html += `<tr data-row="${i}" class="${c.flag ? 'flagged' : ''}"><td>${r.sno ?? i + 1}</td><td>${inp('item', r.item, 110)}</td>`;
-    if (gold) {
-      html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('nwt', r.nwt)}</td><td>${inp('tunch', r.tunch)}</td>
+    let grandTotal = 0;
+    rows.forEach((r, i) => {
+      const c = calcRow(r);
+      r._c = c;
+      if (c.total_amt != null) grandTotal += c.total_amt;
+      const inp = (f, v, w) => `<input data-i="${i}" data-f="${f}" value="${esc(v ?? '')}" style="width:${w || 64}px" oninput="onCell(this)">`;
+      html += `<tr data-row="${i}" class="${c.flag ? 'flagged' : ''}"><td>${r.sno ?? i + 1}</td><td>${inp('item', r.item, 110)}</td>`;
+      if (gold) {
+        html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('nwt', r.nwt)}</td><td>${inp('tunch', r.tunch)}</td>
         <td>${inp('dia_wt', r.dia_wt)}</td><td>${inp('dia_rate', r.dia_rate)}</td>
         <td>${inp('st_wt', r.st_wt)}</td><td>${inp('st_rate', r.st_rate)}</td>
         <td>${inp('making', r.making)}</td><td>${inp('billed', r.billed, 80)}</td>
         <td class="calc c-calc_total">${fmtN(c.calc_total)}</td><td class="calc c-diff ${c.diff ? 'diffbad' : ''}">${fmtN(c.diff)}</td>
         <td class="calc c-total_amt"><b>${fmtN(c.total_amt)}</b></td>`;
-    } else {
-      html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('tunch', r.tunch)}</td>
+      } else {
+        html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('tunch', r.tunch)}</td>
         <td>${inp('net', r.net)}</td><td>${inp('tw', r.tw)}</td>
         <td class="calc c-silver_wt">${fmtN(c.silver_wt, 3)}</td><td class="calc c-wastage_pct">${fmtN(c.wastage_pct)}</td>
         <td class="calc c-wastage_rsg">${fmtN(c.wastage_rsg)}</td><td>${inp('labour_rs', r.labour_rs)}</td>
         <td class="calc c-labour_rsg">${fmtN(c.labour_rsg)}</td><td class="calc c-total_rsg">${fmtN(c.total_rsg)}</td>
         <td class="calc c-total_amt"><b>${fmtN(c.total_amt)}</b></td>`;
-    }
-    html += `<td class="flagcell c-flag">${esc(c.flag || '')}</td>
+      }
+      html += `<td class="flagcell c-flag">${esc(c.flag || '')}</td>
       <td><button class="link danger" onclick="delRow(${i})">×</button></td></tr>`;
-  });
-  html += `</tbody></table></div>
+    });
+    html += `</tbody></table></div>
     <div class="totalsbar">Grand Total Amt: <b id="grand-total-val">₹${grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b>
     <button onclick="saveRows()">Save</button> <button onclick="addRow()">+ Add Row</button>
     <button class="danger" onclick="delParchi()">Delete Parchi</button></div>
+    ${rows.length === 0 ? '<p style="background:#fff8e1;padding:12px;border-radius:8px;margin-top:10px">No items yet. Tap <b>+ Add Row</b> below to add your first item, then fill in the weights — Silver Wt and Total Amt will calculate automatically.</p>' : ''}
     <div id="detail-msg" class="muted"></div>`;
-  $('detail-body').innerHTML = html;
-  current._grand = grandTotal;
+    $('detail-body').innerHTML = html;
+    current._grand = grandTotal;
+  } catch (e) {
+    $('detail-body').innerHTML = '<p class="err">' + esc(e.message) + '</p><button onclick="renderRows()">Retry</button>';
+  }
 }
 function updateRowCalcs(i) {
   const r = rows[i];
@@ -273,7 +288,6 @@ function updateRowCalcs(i) {
     setCell('c-total_amt', fmtN(c.total_amt), true);
   }
   setCell('c-flag', c.flag || '');
-
   let grand = 0;
   rows.forEach(row => {
     const rc = row._c || calcRow(row);
@@ -287,20 +301,16 @@ function onCell(el) {
   const i = +el.dataset.i, f = el.dataset.f;
   const val = el.value.trim() === '' ? null : el.value.trim();
   rows[i][f] = val;
-
-  // Auto-fill net from gwt if net is empty in silver mode
   if (current.kind !== 'gold' && f === 'gwt' && (!rows[i].net || rows[i].net === '')) {
     rows[i].net = val;
     const netInp = document.querySelector(`input[data-i="${i}"][data-f="net"]`);
     if (netInp && (!netInp.value || netInp.value === '')) netInp.value = val || '';
   }
-  // Auto-fill nwt from gwt if nwt is empty in gold mode
   if (current.kind === 'gold' && f === 'gwt' && (!rows[i].nwt || rows[i].nwt === '')) {
     rows[i].nwt = val;
     const nwtInp = document.querySelector(`input[data-i="${i}"][data-f="nwt"]`);
     if (nwtInp && (!nwtInp.value || nwtInp.value === '')) nwtInp.value = val || '';
   }
-
   updateRowCalcs(i);
 }
 function addRow() {
@@ -341,14 +351,12 @@ async function saveRows() {
     if (r.id) full.id = r.id;
     return full;
   });
-  // upsert: delete removed, upsert rest
   const ids = rows.filter(r => r.id).map(r => r.id);
   const { data: existing } = await sb.from('parchi_rows').select('id').eq('parchi_id', current.id);
   for (const e of (existing || [])) if (!ids.includes(e.id)) await sb.from('parchi_rows').delete().eq('id', e.id);
   const { data, error } = await sb.from('parchi_rows').upsert(payload, { onConflict: 'id' }).select();
   if (error) { $('detail-msg').textContent = error.message; return; }
   rows = data.sort((a, b) => (a.sno || 0) - (b.sno || 0));
-  // content-hash duplicate check (same items & amounts as another parchi)
   const chash = contentHash(rows, current.kind);
   const { data: cdupes } = await sb.from('parchis')
     .select('id,party_name,bill_no,bill_date').eq('content_hash', chash).neq('id', current.id).limit(3);
