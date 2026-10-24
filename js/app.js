@@ -371,7 +371,7 @@ async function saveRows() {
 }
 /* num() is defined in math.js - do not redeclare here */
 async function delParchi() {
-  const btn = document.querySelector('button.danger');
+  const btn = document.querySelector('button.danger:not(.link)');
   if (btn && btn.dataset.armed !== '1') {
     btn.dataset.armed = '1';
     btn.textContent = 'Tap again to confirm delete';
