@@ -153,10 +153,26 @@ async function openParchi(id) {
   const { data: p } = await sb.from('parchis').select('*').eq('id', id).single();
   const { data: r } = await sb.from('parchi_rows').select('*').eq('parchi_id', id).order('sno');
   current = p; rows = r || [];
+  if (!rows || rows.length === 0) {
+    rows = [
+      { parchi_id: p.id, sno: 1, item: '' },
+      { parchi_id: p.id, sno: 2, item: '' },
+      { parchi_id: p.id, sno: 3, item: '' }
+    ];
+  }
   let photoHtml = '';
   if (p.photo_url) {
     const { data: u } = await sb.storage.from('parchi-photos').createSignedUrl(p.photo_url, 3600);
-    if (u?.signedUrl) photoHtml = `<img class="parchi-photo" src="${u.signedUrl}" onclick="window.open('${u.signedUrl}','_blank')">`;
+    if (u?.signedUrl) {
+      photoHtml = `
+        <div class="photo-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:13px;font-weight:600;color:#666">📷 Bill Photo (tap to view full)</span>
+            <button class="link" type="button" onclick="togglePhoto(this)">Hide Photo</button>
+          </div>
+          <img id="detail-img" class="parchi-photo" src="${u.signedUrl}" onclick="window.open('${u.signedUrl}','_blank')">
+        </div>`;
+    }
   }
   $('detail-head').innerHTML = `
     <button class="link" onclick="enterApp()">← Back</button>
@@ -165,6 +181,13 @@ async function openParchi(id) {
     <div class="rate-row">Metal rate Rs/kg: <input id="detail-rate" type="number" value="${p.metal_rate || ''}" onchange="onRateChange()"></div>
     ${photoHtml}`;
   renderRows();
+}
+function togglePhoto(btn) {
+  const img = $('detail-img');
+  if (!img) return;
+  const isHidden = img.style.display === 'none';
+  img.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? 'Hide Photo' : 'Show Photo';
 }
 async function onRateChange() {
   const v = parseFloat($('detail-rate').value) || null;
@@ -187,38 +210,98 @@ function renderRows() {
     const c = calcRow(r);
     r._c = c;
     if (c.total_amt != null) grandTotal += c.total_amt;
-    const inp = (f, v, w) => `<input data-i="${i}" data-f="${f}" value="${esc(v ?? '')}" style="width:${w || 64}px" onchange="onCell(this)">`;
-    html += `<tr class="${c.flag ? 'flagged' : ''}"><td>${r.sno ?? i + 1}</td><td>${inp('item', r.item, 110)}</td>`;
+    const inp = (f, v, w) => `<input data-i="${i}" data-f="${f}" value="${esc(v ?? '')}" style="width:${w || 64}px" oninput="onCell(this)">`;
+    html += `<tr data-row="${i}" class="${c.flag ? 'flagged' : ''}"><td>${r.sno ?? i + 1}</td><td>${inp('item', r.item, 110)}</td>`;
     if (gold) {
       html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('nwt', r.nwt)}</td><td>${inp('tunch', r.tunch)}</td>
         <td>${inp('dia_wt', r.dia_wt)}</td><td>${inp('dia_rate', r.dia_rate)}</td>
         <td>${inp('st_wt', r.st_wt)}</td><td>${inp('st_rate', r.st_rate)}</td>
         <td>${inp('making', r.making)}</td><td>${inp('billed', r.billed, 80)}</td>
-        <td class="calc">${fmtN(c.calc_total)}</td><td class="calc ${c.diff ? 'diffbad' : ''}">${fmtN(c.diff)}</td>
-        <td class="calc"><b>${fmtN(c.total_amt)}</b></td>`;
+        <td class="calc c-calc_total">${fmtN(c.calc_total)}</td><td class="calc c-diff ${c.diff ? 'diffbad' : ''}">${fmtN(c.diff)}</td>
+        <td class="calc c-total_amt"><b>${fmtN(c.total_amt)}</b></td>`;
     } else {
       html += `<td>${inp('gwt', r.gwt)}</td><td>${inp('tunch', r.tunch)}</td>
         <td>${inp('net', r.net)}</td><td>${inp('tw', r.tw)}</td>
-        <td class="calc">${fmtN(c.silver_wt, 3)}</td><td class="calc">${fmtN(c.wastage_pct)}</td>
-        <td class="calc">${fmtN(c.wastage_rsg)}</td><td>${inp('labour_rs', r.labour_rs)}</td>
-        <td class="calc">${fmtN(c.labour_rsg)}</td><td class="calc">${fmtN(c.total_rsg)}</td>
-        <td class="calc"><b>${fmtN(c.total_amt)}</b></td>`;
+        <td class="calc c-silver_wt">${fmtN(c.silver_wt, 3)}</td><td class="calc c-wastage_pct">${fmtN(c.wastage_pct)}</td>
+        <td class="calc c-wastage_rsg">${fmtN(c.wastage_rsg)}</td><td>${inp('labour_rs', r.labour_rs)}</td>
+        <td class="calc c-labour_rsg">${fmtN(c.labour_rsg)}</td><td class="calc c-total_rsg">${fmtN(c.total_rsg)}</td>
+        <td class="calc c-total_amt"><b>${fmtN(c.total_amt)}</b></td>`;
     }
-    html += `<td class="flagcell">${esc(c.flag || '')}</td>
+    html += `<td class="flagcell c-flag">${esc(c.flag || '')}</td>
       <td><button class="link danger" onclick="delRow(${i})">×</button></td></tr>`;
   });
   html += `</tbody></table></div>
-    <div class="totalsbar">Grand Total Amt: <b>₹${grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b>
+    <div class="totalsbar">Grand Total Amt: <b id="grand-total-val">₹${grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b>
     <button onclick="saveRows()">Save</button> <button onclick="addRow()">+ Add Row</button>
     <button class="danger" onclick="delParchi()">Delete Parchi</button></div>
     <div id="detail-msg" class="muted"></div>`;
   $('detail-body').innerHTML = html;
   current._grand = grandTotal;
 }
-async function onCell(el) {
+function updateRowCalcs(i) {
+  const r = rows[i];
+  const c = calcRow(r);
+  r._c = c;
+  const tr = document.querySelector(`tr[data-row="${i}"]`);
+  if (!tr) return;
+  if (c.flag) {
+    tr.classList.add('flagged');
+  } else {
+    tr.classList.remove('flagged');
+  }
+  const setCell = (cls, val, isBold = false) => {
+    const el = tr.querySelector('.' + cls);
+    if (el) {
+      if (isBold) el.innerHTML = `<b>${val}</b>`;
+      else el.textContent = val;
+    }
+  };
+  if (current.kind === 'gold') {
+    setCell('c-calc_total', fmtN(c.calc_total));
+    const diffEl = tr.querySelector('.c-diff');
+    if (diffEl) {
+      diffEl.textContent = fmtN(c.diff);
+      diffEl.className = 'calc c-diff ' + (c.diff ? 'diffbad' : '');
+    }
+    setCell('c-total_amt', fmtN(c.total_amt), true);
+  } else {
+    setCell('c-silver_wt', fmtN(c.silver_wt, 3));
+    setCell('c-wastage_pct', fmtN(c.wastage_pct));
+    setCell('c-wastage_rsg', fmtN(c.wastage_rsg));
+    setCell('c-labour_rsg', fmtN(c.labour_rsg));
+    setCell('c-total_rsg', fmtN(c.total_rsg));
+    setCell('c-total_amt', fmtN(c.total_amt), true);
+  }
+  setCell('c-flag', c.flag || '');
+
+  let grand = 0;
+  rows.forEach(row => {
+    const rc = row._c || calcRow(row);
+    if (rc.total_amt != null) grand += rc.total_amt;
+  });
+  current._grand = grand;
+  const gt = document.getElementById('grand-total-val');
+  if (gt) gt.textContent = '₹' + grand.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+function onCell(el) {
   const i = +el.dataset.i, f = el.dataset.f;
-  rows[i][f] = el.value.trim() === '' ? null : el.value.trim();
-  renderRows();
+  const val = el.value.trim() === '' ? null : el.value.trim();
+  rows[i][f] = val;
+
+  // Auto-fill net from gwt if net is empty in silver mode
+  if (current.kind !== 'gold' && f === 'gwt' && (!rows[i].net || rows[i].net === '')) {
+    rows[i].net = val;
+    const netInp = document.querySelector(`input[data-i="${i}"][data-f="net"]`);
+    if (netInp && (!netInp.value || netInp.value === '')) netInp.value = val || '';
+  }
+  // Auto-fill nwt from gwt if nwt is empty in gold mode
+  if (current.kind === 'gold' && f === 'gwt' && (!rows[i].nwt || rows[i].nwt === '')) {
+    rows[i].nwt = val;
+    const nwtInp = document.querySelector(`input[data-i="${i}"][data-f="nwt"]`);
+    if (nwtInp && (!nwtInp.value || nwtInp.value === '')) nwtInp.value = val || '';
+  }
+
+  updateRowCalcs(i);
 }
 function addRow() {
   const sno = rows.length ? Math.max(...rows.map(r => r.sno || 0)) + 1 : 1;

@@ -27,8 +27,8 @@ button.danger{color:#b3261e;border-color:#e0a9a5}
 .kindrow{display:flex;gap:18px;margin:10px 0}
 .kindrow label{font-weight:400;display:flex;gap:6px;align-items:center}
 .photorow{display:flex;gap:10px;margin:6px 0}
-.filebtn{background:#fff;border:1px solid #C9A227;color:#8a6d1c;border-radius:8px;padding:11px 16px;font-size:15px;cursor:pointer;font-weight:600}
-.parchi-photo{width:100%;border-radius:8px;margin:8px 0;box-shadow:0 1px 6px rgba(0,0,0,.12)}
+.parchi-photo{max-height:220px;width:auto;max-width:100%;margin:6px auto;display:block;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.15);cursor:pointer;object-fit:contain}
+.photo-card{margin:8px 0;background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .rate-row{margin:8px 0;font-size:14px}
 .rate-row input{width:130px;display:inline-block;margin:0 0 0 6px;padding:7px}
 .tbl-wrap{overflow-x:auto;margin:10px -14px;padding:0 14px}
