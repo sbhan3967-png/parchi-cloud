@@ -11,6 +11,25 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div id="debug-status" style="background:#fff3cd;color:#111;padding:12px;font:14px monospace;position:relative;z-index:99999">DEBUG: HTML loaded; waiting for JavaScript...</div>
+<script>
+(function () {
+  var box = document.getElementById('debug-status');
+  function log(m) { box.textContent += '\n' + m; }
+  window.addEventListener('error', function (e) { log('ERROR: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')'); });
+  window.addEventListener('unhandledrejection', function (e) { log('PROMISE ERROR: ' + String(e.reason)); });
+  document.addEventListener('DOMContentLoaded', function () {
+    log('DOM READY');
+    log('Supabase: ' + typeof window.supabase);
+    log('Login element: ' + !!document.getElementById('view-login'));
+    var login = document.getElementById('view-login');
+    if (login) {
+      log('Login classes: ' + login.className);
+      try { log('Login display: ' + getComputedStyle(login).display); } catch (err) { log('getComputedStyle failed'); }
+    }
+  });
+})();
+</script>
 <header><h1>📒 Parchi Cloud</h1><button id="btn-logout" class="link" onclick="doLogout()" style="display:none">Logout</button></header>
 
 <!-- LOGIN -->
@@ -51,7 +70,7 @@
   <label>Parchi photo</label>
   <div class="photorow">
     <label class="filebtn">📷 Camera<input type="file" id="np-cam" accept="image/*" capture="environment" onchange="onPhotoChosen(this)" hidden></label>
-    <label class="filebtn">🖼 Gallery<input type="file" id="np-gal" accept="image/*" onchange="onPhotoChosen(this)" hidden></label>
+    <label class="filebtn">🖼️ Gallery<input type="file" id="np-gal" accept="image/*" onchange="onPhotoChosen(this)" hidden></label>
   </div>
   <p id="np-photo-name" class="muted">No photo chosen</p>
   <img id="np-preview" class="parchi-photo" style="display:none">
