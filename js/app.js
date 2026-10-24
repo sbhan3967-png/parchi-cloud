@@ -229,7 +229,7 @@ async function saveRows() {
   $('detail-msg').textContent = 'Saved ✓';
   renderRows();
 }
-const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+/* num() is defined in math.js - do not redeclare here */
 async function delParchi() {
   if (!confirm('Delete this entire parchi?')) return;
   await sb.from('parchis').delete().eq('id', current.id);
