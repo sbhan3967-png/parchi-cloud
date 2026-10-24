@@ -137,31 +137,66 @@ function parseGoldLine(text) {
   return { item, gwt, nwt, tunch, billed: amount };
 }
 
-/* ---------- Main entry ---------- */
+/* ---------- Server OCR (same RapidOCR engine as desktop) ----------
+   The phone sends the photo to the Parchi OCR server, which runs the
+   exact same reader.py pipeline as the desktop software. This is what
+   makes phone reading match desktop accuracy. Tesseract.js is only a
+   fallback if the server is unreachable. */
+const OCR_SERVER_URL = 'https://parchi-ocr-server.onrender.com';
+
+async function readPhotoViaServer(blob, kind, rateKg, onProgress) {
+  if (onProgress) onProgress(0.1);
+  const fd = new FormData();
+  fd.append('photo', blob, 'parchi.jpg');
+  fd.append('kind', kind);
+  fd.append('rate_kg', String(rateKg || 205000));
+  const res = await fetch(OCR_SERVER_URL + '/read', { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Server OCR failed (HTTP ' + res.status + ')');
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  if (onProgress) onProgress(1);
+  return (data.rows || []).map((r, i) => ({
+    sno: i + 1,
+    item: r.item || '', gwt: r.gwt ?? null, net: r.net ?? null,
+    tw: r.tw ?? null, tunch: r.tunch ?? null,
+    labour_rs: r.labour_rs ?? null, silver_wt: r.silver_wt ?? null,
+    flag: r.flag || '',
+  }));
+}
+
+/* ---------- Main entry: server first, Tesseract fallback ---------- */
 async function readPhoto(blobOrUrl, kind, onProgress) {
-  const T = await loadTesseract();
-  const worker = await T.createWorker('eng', 1, {
-    logger: m => { if (onProgress && m.status === 'recognizing text') onProgress(m.progress); }
-  });
+  // Try the server (desktop-grade accuracy) first
   try {
-    const { data } = await worker.recognize(blobOrUrl);
-    const lines = wordsToLines(data.words || []);
-    const rows = [];
-    let sno = 1;
-    for (const line of lines) {
-      const text = line.words.map(w => w.text).join(' ');
-      // Skip S-number prefixes like "S 1" / "1"
-      const clean = text.replace(/^\s*S?\s*\d+\s+/, '').trim();
-      if (!clean) continue;
-      const parsed = kind === 'gold' ? parseGoldLine(clean) : parseSilverLine(clean);
-      if (parsed) {
-        parsed.sno = sno++;
-        rows.push(parsed);
+    const blob = blobOrUrl instanceof Blob ? blobOrUrl
+      : await (await fetch(blobOrUrl)).blob();
+    const state = (typeof window.getParchiState === 'function') ? window.getParchiState() : {};
+    const rateKg = (state.current && state.current.metal_rate)
+      ? state.current.metal_rate : 205000;
+    return await readPhotoViaServer(blob, kind, rateKg, onProgress);
+  } catch (serverErr) {
+    // Fall back to on-device Tesseract
+    if (onProgress) onProgress(0);
+    const T = await loadTesseract();
+    const worker = await T.createWorker('eng', 1, {
+      logger: m => { if (onProgress && m.status === 'recognizing text') onProgress(m.progress); }
+    });
+    try {
+      const { data } = await worker.recognize(blobOrUrl);
+      const lines = wordsToLines(data.words || []);
+      const rows = [];
+      let sno = 1;
+      for (const line of lines) {
+        const text = line.words.map(w => w.text).join(' ');
+        const clean = text.replace(/^\s*S?\s*\d+\s+/, '').trim();
+        if (!clean) continue;
+        const parsed = kind === 'gold' ? parseGoldLine(clean) : parseSilverLine(clean);
+        if (parsed) { parsed.sno = sno++; rows.push(parsed); }
       }
+      return rows;
+    } finally {
+      await worker.terminate();
     }
-    return rows;
-  } finally {
-    await worker.terminate();
   }
 }
 
@@ -173,22 +208,25 @@ async function readCurrentPhoto() {
   const msg = document.getElementById('ocr-msg');
   const setMsg = t => { if (msg) msg.textContent = t; };
   try {
-    if (!window.current || !window.current.id) { setMsg('Open a parchi first.'); return; }
+    const state = (typeof window.getParchiState === 'function') ? window.getParchiState() : {};
+    const current = state.current;
+    const sb = state.sb;
+    if (!current || !current.id) { setMsg('Open a parchi first.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Reading photo...'; }
     setMsg('Loading OCR engine (first time takes ~10s)...');
     // Get the photo: prefer the already-uploaded file, else fetch from storage
     let blob = window._currentPhotoBlob;
-    if (!blob && window.current.photo_url && window.sb) {
+    if (!blob && current.photo_url && sb) {
       setMsg('Downloading photo...');
-      const { data } = await window.sb.storage.from('parchi-photos')
-        .createSignedUrl(window.current.photo_url, 3600);
+      const { data } = await sb.storage.from('parchi-photos')
+        .createSignedUrl(current.photo_url, 3600);
       if (!data?.signedUrl) throw new Error('Could not get photo URL.');
       const res = await fetch(data.signedUrl);
       blob = await res.blob();
     }
     if (!blob) throw new Error('No photo on this parchi. Upload a photo first, then tap Read Photo.');
     setMsg('Reading photo... this takes 10-30 seconds.');
-    const kind = window.current.kind || 'silver';
+    const kind = current.kind || 'silver';
     const rows = await readPhoto(blob, kind, p => {
       setMsg('Reading photo... ' + Math.round(p * 100) + '%');
     });
@@ -196,8 +234,8 @@ async function readCurrentPhoto() {
       setMsg('No rows detected. Try a clearer, straighter photo with good light. You can still add rows manually with + Add Row.');
     } else {
       // Replace current rows with OCR results (user verifies before saving)
-      window.rows = rows;
-      if (typeof window.renderRows === 'function') window.renderRows();
+      if (typeof window.setParchiRows === 'function') window.setParchiRows(rows);
+      else if (typeof window.renderRows === 'function') { window.rows = rows; window.renderRows(); }
       setMsg('Found ' + rows.length + ' rows. Check every row, fix any misreads, then tap Save.');
     }
   } catch (e) {
