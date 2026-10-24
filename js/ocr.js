@@ -181,11 +181,14 @@ async function readPhoto(blobOrUrl, kind, onProgress) {
     const state = (typeof window.getParchiState === 'function') ? window.getParchiState() : {};
     const rateKg = (state.current && state.current.metal_rate)
       ? state.current.metal_rate : 205000;
-    return await readPhotoViaServer(blob, kind, rateKg, onProgress);
+    const rows = await readPhotoViaServer(blob, kind, rateKg, onProgress);
+    window._lastOcrSource = 'server';
+    return rows;
   } catch (serverErr) {
     console.warn('Server OCR failed, falling back to on-device Tesseract:', serverErr);
+    window._lastOcrSource = 'fallback: ' + (serverErr && serverErr.message || String(serverErr));
     // Fall back to on-device Tesseract
-    if (onProgress) onProgress(0, 'Server unavailable, falling back to on-device reader...');
+    if (onProgress) onProgress(0, 'Server issue (' + (serverErr.message || 'error') + '), trying on-device reader...');
     const T = await loadTesseract();
     const worker = await T.createWorker('eng', 1, {
       logger: m => { if (onProgress && m.status === 'recognizing text') onProgress(m.progress); }
@@ -248,12 +251,16 @@ async function readCurrentPhoto() {
       setMsg(text || ('Reading photo... ' + Math.round(p * 100) + '%'));
     });
     if (!rows.length) {
-      setMsg('No rows detected. Try a clearer, straighter photo with good light. You can still add rows manually with + Add Row.');
+      if (window._lastOcrSource && window._lastOcrSource.startsWith('fallback')) {
+        setMsg('Server OCR could not be reached (' + window._lastOcrSource + '). You can retry or add rows manually.');
+      } else {
+        setMsg('No rows detected. Try a clearer, straighter photo with good light. You can still add rows manually with + Add Row.');
+      }
     } else {
       // Replace current rows with OCR results (user verifies before saving)
       if (typeof window.setParchiRows === 'function') window.setParchiRows(rows);
       else if (typeof window.renderRows === 'function') { window.rows = rows; window.renderRows(); }
-      setMsg('Found ' + rows.length + ' rows. Check every row, fix any misreads, then tap Save.');
+      setMsg('Found ' + rows.length + ' rows via ' + (window._lastOcrSource === 'server' ? 'server' : 'on-device OCR') + '. Check every row, fix any misreads, then tap Save.');
     }
   } catch (e) {
     setMsg('Photo read failed: ' + e.message);
