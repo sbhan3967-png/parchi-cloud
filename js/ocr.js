@@ -47,72 +47,66 @@ function wordsToLines(words) {
 
 /* ---------- Silver parchi line parser ----------
    Columns: Item Name | G.Wt | Less | Net | T+W | Labour | Silver | Amount
-   We look for a line with at least 3 numbers. The item name is the
-   leading non-numeric text. Numbers after it are assigned by position
-   and validated with Silver = Net x (T+W)/100. */
+   Item names may contain numbers (tunch: 70, 92.5, 60). So we work
+   BACKWARDS from the end using the invariant Silver = Net x (T+W)/100:
+   find the (net, tw, silver) triple, then G.Wt is just before net
+   (skipping Less), and everything before G.Wt is the item name. */
 function parseSilverLine(text) {
-  // Split into tokens, keeping the item-name part separate
-  const m = text.match(/^(.*?)\s+([\d.,\s]+.*)$/);
-  if (!m) return null;
-  const item = m[1].trim();
-  const numPart = m[2];
-  if (!item || item.length < 2) return null;
-  // Skip header lines and packet/bracket lines
-  if (/^(item|g\.?wt|less|net|t\+w|labour|silver|amount|bill|s\.?no)/i.test(item)) return null;
-  if (/^\(/.test(item)) return null;
-  // Extract all numbers from the numeric part
-  const nums = (numPart.match(/[\d,]+\.?\d*/g) || []).map(s => num(s)).filter(n => n !== null);
-  if (nums.length < 3) return null;
-  // Heuristic assignment: last numbers are usually Silver, Amount.
-  // Try to find a (net, tw, silver) triple satisfying silver = net*tw/100.
-  // Common layouts: [gwt, less, net, tw, labour?, silver, amount]
-  //                 [gwt, net, tw, silver] (less/labour missing)
-  let gwt = null, net = null, tw = null, silver = null, labour = null;
-  // Try 4-number pattern: gwt, net, tw, silver
-  // Try 5-number: gwt, less, net, tw, silver
-  // Try 6-number: gwt, less, net, tw, labour, silver
-  // Try 7-number: gwt, less, net, tw, labour, silver, amount
-  const n = nums.length;
-  if (n >= 4) {
-    // Assume: first = gwt, last-or-second-last = silver
-    // Work backwards: silver is usually the 2nd-last or last number
-    // (amount may follow silver). Try both.
-    for (const silverIdx of [n - 1, n - 2]) {
-      if (silverIdx < 3) continue;
-      const s = nums[silverIdx];
-      // net and tw are the two numbers before silver (skipping labour if present)
-      for (let twIdx = silverIdx - 1; twIdx >= silverIdx - 2 && twIdx >= 2; twIdx--) {
-        const t = nums[twIdx];
-        const netIdx = twIdx - 1;
-        if (netIdx < 1) continue;
-        const nt = nums[netIdx];
-        if (t > 0 && t < 200 && nt > 0) {
-          const expected = nt * t / 100;
-          if (Math.abs(expected - s) < Math.max(0.5, s * 0.02)) {
-            // Match found
-            gwt = nums[0]; net = nt; tw = t; silver = s;
-            // labour: number between tw and silver, if any
-            if (silverIdx - twIdx > 1) labour = nums[twIdx + 1];
-            break;
-          }
+  if (!text || text.length < 5) return null;
+  if (/^\(/.test(text.trim())) return null;
+  // Find all numbers with their positions
+  const numRe = /[\d,]+\.?\d*/g;
+  const nums = [];
+  let m;
+  while ((m = numRe.exec(text)) !== null) {
+    const v = num(m[0]);
+    if (v !== null) nums.push({ v, idx: m.index, end: m.index + m[0].length });
+  }
+  if (nums.length < 4) return null;
+  // Find (net, tw, silver) triple from the end using the invariant
+  let net = null, tw = null, silver = null, silverIdx = -1, netIdx = -1, twIdx = -1;
+  for (let s = nums.length - 1; s >= 3; s--) {
+    const sv = nums[s].v;
+    for (let t = s - 1; t >= s - 2 && t >= 2; t--) {
+      const tv = nums[t].v;
+      if (tv <= 0 || tv >= 200) continue;
+      for (let nn = t - 1; nn >= t - 2 && nn >= 1; nn--) {
+        const nv = nums[nn].v;
+        if (nv <= 0) continue;
+        const expected = nv * tv / 100;
+        if (Math.abs(expected - sv) < Math.max(0.5, sv * 0.02)) {
+          net = nv; tw = tv; silver = sv;
+          silverIdx = s; twIdx = t; netIdx = nn;
+          break;
         }
       }
       if (silver !== null) break;
     }
+    if (silver !== null) break;
   }
-  if (net === null || tw === null) {
-    // Fallback: positional guess for 4+ numbers
-    // [gwt, less?, net, tw, ...] — take first as gwt, then find net/tw pair
-    if (n >= 4) {
-      gwt = nums[0];
-      // If 5+ numbers, assume [gwt, less, net, tw, ...]
-      // If 4 numbers, assume [gwt, net, tw, silver]
-      if (n >= 5) { net = nums[2]; tw = nums[3]; }
-      else { net = nums[1]; tw = nums[2]; }
-      if (tw > 200 || tw <= 0) return null;
-      silver = net * tw / 100;
-    } else return null;
+  if (silver === null) return null;
+  // G.Wt: the number before net (skip Less if there are 2+ numbers before net)
+  // Layout: [item...] G.Wt [Less] Net T+W ... Silver [Amount]
+  // If netIdx >= 2, there are at least 2 numbers before net: G.Wt and Less.
+  //   G.Wt = nums[netIdx - 2] if netIdx >= 2, else nums[0].
+  // Actually: numbers before net are [G.Wt, Less?] — Less is optional.
+  //   If netIdx == 1: only G.Wt before net → gwt = nums[0].
+  //   If netIdx >= 2: G.Wt = nums[netIdx-2], Less = nums[netIdx-1].
+  // But item name may contain numbers too! So we can't just count.
+  // Safer: G.Wt is the LAST number before net that is > net*0.5
+  // (G.Wt is always >= Net since Less is subtracted).
+  let gwt = null, gwtIdx = -1;
+  for (let i = netIdx - 1; i >= 0; i--) {
+    if (nums[i].v >= net * 0.5 && nums[i].v < net * 3) { gwt = nums[i].v; gwtIdx = i; break; }
   }
+  if (gwt === null) return null;
+  // Item name = text before G.Wt's position
+  const item = text.slice(0, nums[gwtIdx].idx).trim().replace(/^\s*S?\s*\d+\s+/, '').trim();
+  if (!item || item.length < 2) return null;
+  if (/^(item|g\.?wt|less|net|t\+w|labour|silver|amount|bill|s\.?no)/i.test(item)) return null;
+  // Labour: number between tw and silver, if any
+  let labour = null;
+  if (silverIdx - twIdx > 1) labour = nums[twIdx + 1].v;
   // Tunch from item name (last number 30-100)
   let tunch = null;
   const nameNums = (item.match(/(\d+(?:\.\d+)?)/g) || []).map(parseFloat);
