@@ -69,7 +69,17 @@
 <script src="js/math.js"></script>
 <script src="js/app.js"></script>
 <script>
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+// Unregister any old service worker and clear its caches (fixes stale cached app).
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function (regs) {
+    regs.forEach(function (reg) { reg.unregister().catch(function(){}); });
+  }).catch(function(){});
+  if (window.caches && caches.keys) {
+    caches.keys().then(function (keys) {
+      keys.forEach(function (k) { caches.delete(k).catch(function(){}); });
+    }).catch(function(){});
+  }
+}
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-logout').style.display = 'none';
 });
