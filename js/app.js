@@ -3,8 +3,8 @@
 let sb = null, user = null, parchis = [], current = null, rows = [];
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;;'}[c]));
-const fmtN = (v, d=2) => (v === null || v === undefined || v === '') ? '' : Number(v).toFixed(d);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));;
+const   fmtN = (v, d=2) => (v === null || v === undefined || v === '') ? '' : Number(v).toFixed(d);
 
 function show(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
