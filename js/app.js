@@ -3,7 +3,7 @@
 let sb = null, user = null, parchis = [], current = null, rows = [];
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;;'}[c]));
 const fmtN = (v, d=2) => (v === null || v === undefined || v === '') ? '' : Number(v).toFixed(d);
 
 function show(view) {
@@ -15,6 +15,9 @@ function show(view) {
 /* ---------- auth ---------- */
 async function init() {
   try {
+    // Show login view early so the page is never blank, even if auth fails.
+    var loginEl = document.getElementById('view-login');
+    if (loginEl) loginEl.classList.add('active');
     if (!window.supabase) {
       document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>Could not load app libraries</h2><p>Check your internet connection and reload.</p></div>';
       return;
@@ -233,4 +236,19 @@ async function delParchi() {
   enterApp();
 }
 
-window.addEventListener('DOMContentLoaded', init);
+async function startAppSafely() {
+  try {
+    await init();
+  } catch (error) {
+    var pre = document.createElement('pre');
+    pre.id = 'fatal-error';
+    pre.style.cssText = 'background:#fee;color:#900;padding:16px;white-space:pre-wrap;z-index:999999;position:relative';
+    pre.textContent = 'Init failed: ' + (error && error.stack || error && error.message || String(error));
+    document.body.insertAdjacentElement('afterbegin', pre);
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startAppSafely, { once: true });
+} else {
+  startAppSafely();
+}
