@@ -180,7 +180,7 @@ async function openParchi(id) {
     <button class=\"link\" onclick=\"enterApp()\">← Back</button>
     <h2>${esc(p.party_name)}</h2>
     <div class=\"muted\">${p.kind === 'gold' ? 'Gold-Diamond' : 'Silver'} · ${esc(p.bill_no || '')} ${p.bill_date ? '· ' + esc(p.bill_date) : ''}</div>
-    <div class=\"rate-row\">Metal rate Rs/kg: <input id=\"detail-rate\" type=\"number\" value=\"${p.metal_rate || ''}\" onchange=\"onRateChange()\"></div>
+    <div class=\"rate-row\">Metal rate Rs/kg: <input id=\"detail-rate\" type=\"number\" value=\"${p.metal_rate || ''}\" onchange=\"onRateChange()\"></div>     <div style=\"margin-top:8px\">Find G.Wt: <input id=\"find-gwt\" type=\"number\" step=\"0.001\" placeholder=\"e.g. 443\" style=\"width:110px\" onkeydown=\"if(event.key==='Enter')findGwt()\"> <button onclick=\"findGwt()\">Find</button> <span id=\"find-gwt-msg\" class=\"muted\"></span></div>
     ${photoHtml}`;
     renderRows();
   } catch (e) {
@@ -411,6 +411,6 @@ if (document.readyState === 'loading') {
   startAppSafely();
 }
 
-// Expose parchi state for the OCR module (ocr.js cannot see let variables)
+function findGwt() {   const el = document.getElementById('find-gwt');   const msg = document.getElementById('find-gwt-msg');   document.querySelectorAll('tr[data-row]').forEach(tr => tr.style.background = '');   const v = el ? parseFloat(el.value) : NaN;   if (isNaN(v)) { if (msg) msg.textContent = 'Enter a G.Wt value.'; return; }   let found = -1;   for (let i = 0; i < rows.length; i++) {     const g = parseFloat(rows[i].gwt);     if (!isNaN(g) && Math.abs(g - v) < 0.0005) { found = i; break; }   }   if (found === -1) { if (msg) msg.textContent = 'No item with G.Wt ' + v + ' found.'; return; }   const tr = document.querySelector('tr[data-row="' + found + '"]');   if (tr) { tr.style.background = '#C8E6C9'; tr.scrollIntoView({ behavior: 'smooth', block: 'center' }); }   if (msg) msg.textContent = 'Found row ' + (rows[found].sno ?? found + 1) + ': ' + (rows[found].item || ''); }  // Expose parchi state for the OCR module (ocr.js cannot see let variables)
 window.getParchiState = () => ({ current, rows, sb });
 window.setParchiRows = (r) => { rows = r; renderRows(); };
