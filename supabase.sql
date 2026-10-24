@@ -10,6 +10,8 @@ create table if not exists parchis (
   metal_rate numeric,              -- Rs per kg pure
   photo_url text,                   -- storage path in parchi-photos bucket
   total_amt numeric,                -- grand total payable (computed)
+  photo_hash text,                  -- sha256 of uploaded photo (duplicate photo detection)
+  content_hash text,                -- hash of normalized row data (duplicate content detection)
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

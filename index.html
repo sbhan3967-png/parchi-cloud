@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
 <header><h1>📒 Parchi Cloud</h1><button id="btn-logout" class="link" onclick="doLogout()" style="display:none">Logout</button></header>
 
 <!-- LOGIN -->
@@ -50,8 +51,8 @@
   <label>Metal rate Rs/kg <input id="np-rate" type="number" value="205000"></label>
   <label>Parchi photo</label>
   <div class="photorow">
-    <label class="filebtn">📷 Camera<input type="file" id="np-cam" accept="image/*" capture="environment" onchange="onPhotoChosen(this)" hidden></label>
-    <label class="filebtn">🖼️ Gallery<input type="file" id="np-gal" accept="image/*" onchange="onPhotoChosen(this)" hidden></label>
+    <label class="filebtn">📷 Camera<input type="file" id="np-cam" accept="image/*" capture="environment" onchange="onPhotoChosen(this)"></label>
+    <label class="filebtn">🖼 Gallery<input type="file" id="np-gal" accept="image/*" onchange="onPhotoChosen(this)"></label>
   </div>
   <p id="np-photo-name" class="muted">No photo chosen</p>
   <img id="np-preview" class="parchi-photo" style="display:none">
@@ -88,7 +89,6 @@ window.enterApp = async function() {
   document.getElementById('btn-logout').style.display = '';
   await _enterApp();
 };
-const _show = window.show;
 </script>
 </body>
 </html>

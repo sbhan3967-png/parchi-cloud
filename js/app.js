@@ -3,8 +3,8 @@
 let sb = null, user = null, parchis = [], current = null, rows = [];
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));;
-const   fmtN = (v, d=2) => (v === null || v === undefined || v === '') ? '' : Number(v).toFixed(d);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN = (v, d=2) => (v === null || v === undefined || v === '') ? '' : Number(v).toFixed(d);
 
 function show(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -94,14 +94,43 @@ async function saveNewParchi() {
   const party = $('np-party').value.trim();
   if (!party) { $('np-msg').textContent = 'Enter party name.'; return; }
   const kind = document.querySelector('input[name="np-kind"]:checked').value;
-  $('np-msg').textContent = 'Saving...';
+  const billno = $('np-billno').value.trim() || null;
+  $('np-msg').textContent = 'Checking for duplicates...';
   $('np-save').disabled = true;
   try {
+    // duplicate check: same party + bill no
+    if (billno) {
+      const { data: dupes } = await sb.from('parchis')
+        .select('id,party_name,bill_no,bill_date').eq('party_name', party).eq('bill_no', billno).limit(3);
+      if (dupes && dupes.length) {
+        const list = dupes.map(p => `${p.party_name} | bill ${p.bill_no} | ${p.bill_date || ''}`).join('\n');
+        if (!confirm('This looks like a parchi you already uploaded:\n\n' + list + '\n\nSave anyway?')) {
+          $('np-msg').textContent = ''; $('np-save').disabled = false; return;
+        }
+      }
+    }
+    // duplicate check: same photo bytes
+    let phash = null;
+    if (newPhotoFile) {
+      const buf = await newPhotoFile.arrayBuffer();
+      const h = await crypto.subtle.digest('SHA-256', buf);
+      phash = Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+      const { data: pdupes } = await sb.from('parchis')
+        .select('id,party_name,bill_no,bill_date').eq('photo_hash', phash).limit(3);
+      if (pdupes && pdupes.length) {
+        const list = pdupes.map(p => `${p.party_name} | bill ${p.bill_no || ''} | ${p.bill_date || ''}`).join('\n');
+        if (!confirm('This exact photo was already uploaded as:\n\n' + list + '\n\nSave anyway?')) {
+          $('np-msg').textContent = ''; $('np-save').disabled = false; return;
+        }
+      }
+    }
+    $('np-msg').textContent = 'Saving...';
     const { data: p, error } = await sb.from('parchis').insert({
       user_id: user.id, party_name: party,
-      bill_no: $('np-billno').value.trim() || null,
+      bill_no: billno,
       bill_date: $('np-date').value || null, kind,
-      metal_rate: parseFloat($('np-rate').value) || null
+      metal_rate: parseFloat($('np-rate').value) || null,
+      photo_hash: phash
     }).select().single();
     if (error) throw error;
     if (newPhotoFile) {
@@ -202,6 +231,17 @@ async function delRow(i) {
   if (r.id) await sb.from('parchi_rows').delete().eq('id', r.id);
   rows.splice(i, 1); renderRows();
 }
+function contentHash(rows, kind) {
+  const parts = rows.map(r => {
+    const c = r._c || {};
+    const f3 = v => { const n = parseFloat(v); return isNaN(n) ? '' : n.toFixed(3); };
+    if (kind === 'gold') return [r.item, r.gwt, r.nwt, r.tunch, r.dia_wt, r.dia_rate, r.st_wt, r.st_rate, r.making, r.billed].map(v => String(v ?? '').trim().toLowerCase()).join('|');
+    return [r.item, r.gwt, r.tunch, r.net, r.tw, r.labour_rs, c.wastage_pct, c.labour_rsg].map(v => String(v ?? '').trim().toLowerCase()).join('|');
+  }).sort().join('\n');
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for (let i = 0; i < parts.length; i++) { h1 = (h1 ^ parts.charCodeAt(i)) * 0x01000193 >>> 0; h2 = (h2 ^ parts.charCodeAt(parts.length - 1 - i)) * 0x01000193 >>> 0; }
+  return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0');
+}
 async function saveRows() {
   $('detail-msg').textContent = 'Saving...';
   const payload = rows.map((r, i) => {
@@ -225,8 +265,17 @@ async function saveRows() {
   const { data, error } = await sb.from('parchi_rows').upsert(payload, { onConflict: 'id' }).select();
   if (error) { $('detail-msg').textContent = error.message; return; }
   rows = data.sort((a, b) => (a.sno || 0) - (b.sno || 0));
-  await sb.from('parchis').update({ total_amt: current._grand || null, updated_at: new Date().toISOString() }).eq('id', current.id);
-  $('detail-msg').textContent = 'Saved ✓';
+  // content-hash duplicate check (same items & amounts as another parchi)
+  const chash = contentHash(rows, current.kind);
+  const { data: cdupes } = await sb.from('parchis')
+    .select('id,party_name,bill_no,bill_date').eq('content_hash', chash).neq('id', current.id).limit(3);
+  if (cdupes && cdupes.length) {
+    const list = cdupes.map(p => `${p.party_name} | bill ${p.bill_no || ''} | ${p.bill_date || ''}`).join('\n');
+    $('detail-msg').textContent = 'Saved ✓ (note: same content as:\n' + list + ')';
+  } else {
+    $('detail-msg').textContent = 'Saved ✓';
+  }
+  await sb.from('parchis').update({ total_amt: current._grand || null, content_hash: chash, updated_at: new Date().toISOString() }).eq('id', current.id);
   renderRows();
 }
 /* num() is defined in math.js - do not redeclare here */
