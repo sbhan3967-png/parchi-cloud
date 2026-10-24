@@ -180,6 +180,7 @@ async function openParchi(id) {
     <h2>${esc(p.party_name)}</h2>
     <div class=\"muted\">${p.kind === 'gold' ? 'Gold-Diamond' : 'Silver'} · ${esc(p.bill_no || '')} ${p.bill_date ? '· ' + esc(p.bill_date) : ''}</div>
     <div class=\"rate-row\">Metal rate Rs/kg: <input id=\"detail-rate\" type=\"number\" value=\"${p.metal_rate || ''}\" onchange=\"onRateChange()\"></div>
+    <div style="margin-top:10px"><button id="ocr-btn" class="primary" onclick="ParchiOCR.readCurrentPhoto()">🔍 Read Photo</button> <span id="ocr-msg" class="muted"></span></div>
     ${photoHtml}`;
     renderRows();
   } catch (e) {
